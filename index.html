@@ -833,34 +833,7 @@ body::after {
 
 /* ===================== RESPONSIVE ===================== */
 
-/* Tablet: collapse right panel, shrink left */
-@media (max-width: 1100px) {
-  #main { grid-template-columns: minmax(220px, 280px) 1fr; }
-  #right-panel { display: none; }
-  #header { flex-wrap: wrap; min-height: auto; gap: 2px; }
-  .header-stat { font-size: 12px; margin-right: 10px; }
-  #phase-indicator { font-size: 11px; }
-}
-
-/* Mobile: stack with tab navigation */
-@media (max-width: 900px) {
-  #main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
-  #left-panel { display: none; }
-  #right-panel { display: none; }
-  #action-panel { grid-column: 1; }
-  #header { flex-wrap: wrap; min-height: auto; padding: 4px 6px; }
-  #header-title { font-size: 13px; margin-right: 8px; }
-  .header-stat { font-size: 11px; margin-right: 8px; }
-  #phase-indicator { font-size: 11px; order: 10; width: 100%; margin-top: 2px; }
-  .header-spacer { display: none; }
-  /* Mobile tab bar for panel switching */
-  /* Scale boot screen for mobile */
-  .logo-ascii { font-size: 5.5px; margin-bottom: 6px; }
-  .logo-sub { font-size: 10px; letter-spacing: 1px; }
-  #boot-screen { padding: 20px 12px; }
-  #boot-log { width: 100%; }
-  #boot-skip-hint { display: block; }
-}
+/* Mobile tabs (base styles, hidden on desktop) */
 #mobile-tabs {
   display: none;
   border-bottom: 1px solid var(--border);
@@ -879,6 +852,7 @@ body::after {
   padding: 8px 4px;
   cursor: pointer;
   min-height: 44px;
+  transition: color 0.15s, border-color 0.15s;
 }
 #mobile-tabs button.active {
   color: var(--green);
@@ -886,7 +860,40 @@ body::after {
   text-shadow: 0 0 6px var(--green-glow-sm);
 }
 #mobile-tabs button:hover { color: var(--green); }
+
+/* Tablet: narrow right panel, shrink left */
+@media (max-width: 1100px) {
+  #main { grid-template-columns: minmax(200px, 260px) 1fr 220px; }
+  #header { flex-wrap: wrap; min-height: auto; gap: 2px; }
+  .header-stat { font-size: 12px; margin-right: 10px; }
+  #phase-indicator { font-size: 11px; }
+  .siem-entry { font-size: 11px; }
+  .note-entry { font-size: 11px; }
+}
+
+/* Mobile: stack with tab navigation */
 @media (max-width: 900px) {
+  /* Grid: single column */
+  #main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  #left-panel { display: none; }
+  #right-panel { display: none; }
+  #action-panel { grid-column: 1; }
+
+  /* Header: compact two-row layout */
+  #header { flex-wrap: wrap; min-height: auto; padding: 6px 8px; gap: 4px; }
+  #header-title { font-size: 13px; margin-right: 6px; }
+  .header-stat { font-size: 11px; margin-right: 8px; }
+  #phase-indicator { font-size: 11px; order: 10; width: 100%; margin-top: 2px; }
+  .header-spacer { display: none; }
+
+  /* Boot screen: scale logo for mobile */
+  .logo-ascii { font-size: 5.5px; margin-bottom: 6px; }
+  .logo-sub { font-size: 10px; letter-spacing: 1px; }
+  #boot-screen { padding: 20px 12px; }
+  #boot-log { width: 100%; font-size: 12px; }
+  #boot-skip-hint { display: block; font-size: 14px; }
+
+  /* Show mobile tab navigation */
   #mobile-tabs { display: flex; }
   #left-panel.mobile-visible,
   #right-panel.mobile-visible {
@@ -899,6 +906,59 @@ body::after {
     display: none;
   }
   #action-panel.mobile-visible { display: flex; }
+
+  /* Choice buttons: larger touch targets */
+  .choices-container { gap: 10px; margin-top: 12px; }
+  .choice-btn { padding: 14px 12px; font-size: 14px; min-height: 48px; }
+  .choice-btn .choice-desc { font-size: 12px; padding-left: 20px; }
+  .continue-btn { padding: 14px 12px; font-size: 15px; min-height: 48px; margin-top: 16px; }
+
+  /* Evidence and narrative: better mobile reading */
+  .narrative-box { padding: 12px; font-size: 14px; line-height: 1.65; }
+  .evidence-box { padding: 10px 12px; font-size: 13px; }
+  .evidence-box pre { font-size: 11px; }
+
+  /* SIEM expand: full width on mobile */
+  #main.siem-expanded #right-panel { width: 85%; }
+
+  /* End screen: mobile-friendly */
+  #end-screen { padding: 16px; }
+  .end-title { font-size: 24px; letter-spacing: 2px; }
+  .end-subtitle { font-size: 13px; }
+  .scorecard { padding: 10px 12px; }
+  .sc-grade { font-size: 36px; }
+  .sc-row { font-size: 12px; }
+  .overlay-btn { font-size: 14px; padding: 12px 20px; min-height: 48px; width: 100%; }
+  .end-debrief { font-size: 12px; }
+
+  /* About modal: full-width on mobile */
+  #about-modal { padding: 12px; }
+  #about-modal-inner { padding: 16px; }
+  #about-modal-inner h2 { font-size: 14px; }
+  #about-modal-inner p { font-size: 13px; line-height: 1.6; }
+  #about-close-btn { padding: 10px 20px; min-height: 44px; }
+}
+
+/* Small phones: tighter adjustments */
+@media (max-width: 480px) {
+  /* Boot screen: even smaller logo */
+  .logo-ascii { font-size: 4.2px; }
+  .logo-sub { font-size: 9px; }
+
+  /* Header: ultra-compact */
+  #header { padding: 4px 6px; }
+  #header-title { font-size: 11px; letter-spacing: 1px; margin-right: 4px; }
+  .header-stat { font-size: 10px; margin-right: 6px; }
+
+  /* Narrative and evidence: tighter padding */
+  .narrative-box { padding: 10px 8px; }
+  .evidence-box { padding: 8px; }
+  .evidence-box pre { font-size: 10px; }
+
+  /* End screen: tighten */
+  .end-title { font-size: 20px; }
+  .scorecard { width: 100%; }
+  .sc-grade { font-size: 30px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
