@@ -1,30 +1,51 @@
 # PumaResponse
 
-> **Status: Unfinished Prototype** — This project is an early-stage prototype under active development. Features may be incomplete, scenarios may change, and rough edges are expected.
+PumaResponse is an incident response training simulator that puts you in the seat of a cybersecurity analyst at a Managed Security Service Provider (MSSP). Work through realistic incidents, make critical decisions under pressure, and get graded on your response.
 
-PumaResponse is an incident response edutainment game that puts you in the seat of a cybersecurity analyst at a Managed Security Service Provider (MSSP). Make critical decisions across realistic incident scenarios and see how your choices affect the outcome.
+![Boot sequence](screenshots/boot.png)
 
 ## What Is This?
 
-An interactive, browser-based simulator where you work through the six phases of incident response — Triage, Containment, Investigation, Eradication, Recovery, and Post-Incident — making branching decisions that are scored on response time, containment effectiveness, evidence preservation, and thoroughness.
+An interactive, browser-based simulator where you work through the six phases of incident response — **Triage, Containment, Investigation, Eradication, Recovery, and Post-Incident** — making branching decisions that are scored on response time, containment effectiveness, evidence preservation, and thoroughness.
 
-The game features a retro CRT terminal aesthetic with a live SIEM feed, dynamic scoring, and a final performance grade (A–F).
+Each playthrough randomly assigns one of seven real-world incident scenarios. You read situation briefings, examine forensic evidence and SIEM logs, and choose from three response options per phase. Your decisions cascade — early mistakes make later phases harder.
+
+![Triage phase — reading evidence and selecting a response](screenshots/triage.png)
+
+## Features
+
+- **Retro CRT terminal aesthetic** with scanline effects, glowing green-on-black text, and animated boot sequence
+- **Three-panel layout**: Incident Brief (left), Response Actions (center), SIEM Feed (right)
+- **Live SIEM feed** with color-coded severity levels that updates as the incident unfolds
+- **Indicators of Compromise (IOCs)** displayed per scenario — file hashes, IPs, processes, domains, user agents
+- **Interactive evidence panels** with syntax-highlighted logs, email headers, and forensic artifacts
+- **Real-time performance metrics** tracking four scoring dimensions as you play
+- **Dynamic outcome feedback** showing the consequences of each decision with point breakdowns
+- **Phase decision chain** visualizing your choices across all six phases
+- **Full keyboard support** alongside mouse/touch controls
+- **Mobile-responsive** with tab-based panel switching on smaller screens
+
+![Containment phase — M365 audit logs and three response options](screenshots/containment.png)
 
 ## Scenarios
 
-Seven incident scenarios are currently included (randomly selected each playthrough):
+Seven incident scenarios are randomly selected each playthrough:
 
-- **Ransomware Outbreak (LockBit 3.0)** — Multiple endpoints encrypted at a financial services firm. Active Directory potentially compromised. Data exfiltration detected. *CRITICAL severity.*
-- **Business Email Compromise (BEC/CEO Fraud)** — $340K wire transfer initiated via spoofed CEO email. Within the recall window. Credential compromise confirmed. *HIGH severity.*
-- **Supply Chain Compromise** — Trusted RMM vendor pushes backdoored update to 340+ endpoints at a healthcare organization. Patient data at risk. HIPAA implications. *CRITICAL severity.*
-- **Insider Threat** — Departing engineer exfiltrates ITAR-controlled avionics designs to a foreign-owned competitor. FBI referral and defense contractor compliance at stake. *HIGH severity.*
-- **Cloud Infrastructure Breach** — AWS access keys leaked in a public GitHub repo. Crypto miners, IAM privilege escalation, and 2.1M payment card records exposed. PCI-DSS breach. *CRITICAL severity.*
-- **DDoS Smokescreen** — Volumetric DDoS attack masks a simultaneous SQL injection and POS malware deployment across 52 retail locations on Black Friday weekend. *CRITICAL severity.*
-- **Web Application RCE** — Zero-day deserialization exploit on a law firm's client portal. Attacker gains root, dumps attorney-client privileged case files. Legal ethics crisis. *CRITICAL severity.*
+| Scenario | Severity | Description |
+|----------|----------|-------------|
+| **Ransomware Outbreak (LockBit 3.0)** | CRITICAL | Multiple endpoints encrypted at a financial services firm. AD potentially compromised. Data exfiltration detected. |
+| **Business Email Compromise (BEC/CEO Fraud)** | HIGH | $340K wire transfer initiated via spoofed CEO email. Within the recall window. Credential compromise confirmed. |
+| **Supply Chain Compromise** | CRITICAL | Trusted RMM vendor pushes backdoored update to 340+ endpoints at a healthcare org. Patient data at risk. HIPAA implications. |
+| **Insider Threat** | HIGH | Departing engineer exfiltrates ITAR-controlled avionics designs to a foreign-owned competitor. FBI referral at stake. |
+| **Cloud Infrastructure Breach** | CRITICAL | AWS access keys leaked in a public GitHub repo. Crypto miners, IAM escalation, and 2.1M payment card records exposed. PCI-DSS breach. |
+| **DDoS Smokescreen** | CRITICAL | Volumetric DDoS masks a simultaneous SQL injection and POS malware deployment across 52 retail locations on Black Friday. |
+| **Web Application RCE** | CRITICAL | Zero-day deserialization exploit on a law firm's client portal. Attacker gains root, dumps attorney-client privileged case files. |
 
 Each scenario includes realistic IOCs, forensic evidence, and consequences tied to your decisions.
 
-## How to Run
+## How to Play
+
+### Getting Started
 
 No build step, no dependencies — just open the file:
 
@@ -32,35 +53,50 @@ No build step, no dependencies — just open the file:
 # Option 1: Open directly
 open index.html
 
-# Option 2: Local server (recommended)
+# Option 2: Local server (recommended for best experience)
 python3 -m http.server 8000
 # Then visit http://localhost:8000
 ```
 
-Works in any modern browser (Chrome, Firefox, Safari, Edge). Responsive on mobile/tablet.
+Works in any modern browser (Chrome, Firefox, Safari, Edge). Responsive on mobile and tablet.
 
-## Controls
+### Controls
 
-- **Mouse**: Click choices and buttons
-- **Keyboard**: `A`/`B`/`C` or `1`/`2`/`3` to select choices, `Enter`/`Space` to advance
+| Input | Action |
+|-------|--------|
+| `A` / `B` / `C` or `1` / `2` / `3` | Select a response option |
+| `Enter` / `Space` | Advance to the next phase |
+| Mouse / Touch | Click choices and buttons |
 
-## Tech Stack
+### Game Flow
 
-- Vanilla HTML, CSS, and JavaScript (single `index.html` file)
-- No frameworks or external dependencies
-- CRT terminal aesthetic with CSS animations and custom properties
+1. **Boot sequence** — Watch the MSSP platform initialize (or press any key to skip)
+2. **Incident assignment** — Read the briefing, IOCs, and SIEM alerts
+3. **Six decision phases** — Choose your response at each phase; see the outcome and score impact
+4. **Performance debrief** — Get your final grade (A through F) with a full scorecard breakdown
+
+![End screen — performance scorecard and phase decision chain](screenshots/endscreen.png)
 
 ## Scoring
 
-Decisions are rated as good, partial, or bad across four metrics. Your final grade reflects professional incident response standards:
+Each decision is rated as **optimal**, **acceptable**, or **poor** across four metrics:
 
-| Grade | Score | Meaning |
+| Metric | What It Measures |
+|--------|-----------------|
+| Response Time | Speed of your actions vs. timeline pressure |
+| Containment | How effectively you limited the blast radius |
+| Evidence Preservation | Whether you maintained forensic integrity |
+| Thoroughness | Completeness of your response at each phase |
+
+Your final grade reflects professional incident response standards:
+
+| Grade | Score | Verdict |
 |-------|-------|---------|
-| A | 80%+ | Outstanding response |
-| B | 60–79% | Solid response |
-| C | 40–59% | Contained with gaps |
-| D | 20–39% | Barely contained |
-| F | <20% | Response failure |
+| **A** | 80%+ | INCIDENT RESOLVED — Outstanding response |
+| **B** | 60-79% | INCIDENT RESOLVED — Solid response |
+| **C** | 40-59% | INCIDENT CONTAINED — Contained with gaps |
+| **D** | 20-39% | INCIDENT CONTAINED (BARELY) — Significant gaps |
+| **F** | <20% | RESPONSE FAILURE — Critical errors throughout |
 
 ## Educational Value
 
@@ -71,11 +107,25 @@ The simulator teaches real-world incident response trade-offs grounded in NIST/S
 - Depth of investigation vs. timeline pressure
 - Post-incident documentation and regulatory obligations
 
+## Tech Stack
+
+- Vanilla HTML, CSS, and JavaScript — single `index.html` file (~226 KB)
+- No frameworks, no build step, no external dependencies
+- CRT terminal aesthetic with CSS custom properties and animations
+- Full keyboard accessibility with ARIA labels and focus management
+
 ## Project Structure
 
 ```
 pumaresponse/
-└── index.html    # Single-file application (~87 KB)
+├── index.html          # Single-file application
+├── screenshots/        # Game screenshots
+│   ├── boot.png
+│   ├── triage.png
+│   ├── containment.png
+│   ├── outcome.png
+│   └── endscreen.png
+└── README.md
 ```
 
 ## License
